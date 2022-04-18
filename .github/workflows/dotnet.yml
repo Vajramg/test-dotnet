@@ -1,0 +1,43 @@
+name: Deploy .NET to AWS
+
+on:
+  push:
+    branches: [ main ]
+
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v2
+      with:
+        dotnet-version: 6.0.x
+    - name: Restore dependencies
+      run: dotnet restore
+    - name: Build
+      run: dotnet build --no-restore
+    - name: Test
+      run: dotnet test --no-build --verbosity normal
+    - name: Publish
+      run: dotnet publish -c Release -o '${{ github.workspace }}/out'
+    - name: Generate deployment package
+      run: |
+        cd ${{ github.workspace }}/out
+        zip -r ${{ github.workspace }}/out.zip . -x '*.git*'
+
+    - name: Deploy to EB
+      uses: einaregilsson/beanstalk-deploy@v20
+      with:
+        aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        application_name: dotNetApp
+        environment_name: Dotnetapp-env
+        version_label: ${{ github.run_id }}
+        region: us-east-1
+        deployment_package: ${{ github.workspace }}/out.zip
+        region: us-west-2
+        deployment_package: deploy.zip
